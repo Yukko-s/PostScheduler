@@ -77,7 +77,9 @@ def parse(text: str) -> tuple[Optional[ParsedSchedule], Optional[str]]:
     else:
         monthly_m = re.fullmatch(r"毎月(\d+)日", raw_repeat)
         weekly_m = re.fullmatch(r"毎週(.+)", raw_repeat)
-        if monthly_m:
+        if raw_repeat == "毎日":
+            pass
+        elif monthly_m:
             day = int(monthly_m.group(1))
             if not 1 <= day <= 31:
                 return None, f"繰り返しの日付が正しくありません: {day}"
@@ -87,7 +89,7 @@ def parse(text: str) -> tuple[Optional[ParsedSchedule], Optional[str]]:
                 valid = "月・火・水・木・金・土・日（または月曜〜日曜）"
                 return None, f"曜日が正しくありません: `{weekday_str}`\n使用可能: {valid}"
         else:
-            return None, "繰り返しの形式が正しくありません\n例: `毎月25日` または `毎週月曜`"
+            return None, "繰り返しの形式が正しくありません\n例: `毎日` `毎月25日` `毎週月曜`"
         repeat = raw_repeat
 
     return ParsedSchedule(
@@ -107,6 +109,9 @@ def calc_next_dt(parsed: ParsedSchedule, after: datetime) -> Optional[datetime]:
     minute = parsed.scheduled_at.minute
     second = parsed.scheduled_at.second
 
+    if parsed.repeat == "毎日":
+        return _next_daily(hour, minute, second, after)
+
     monthly_m = re.fullmatch(r"毎月(\d+)日", parsed.repeat)
     if monthly_m:
         day = int(monthly_m.group(1))
@@ -118,6 +123,14 @@ def calc_next_dt(parsed: ParsedSchedule, after: datetime) -> Optional[datetime]:
         return _next_weekly(weekday, hour, minute, second, after)
 
     return None
+
+
+def _next_daily(hour: int, minute: int, second: int, after: datetime) -> datetime:
+    """毎日の次回日時を返す。"""
+    candidate = after.replace(hour=hour, minute=minute, second=second, microsecond=0)
+    if candidate <= after:
+        candidate += timedelta(days=1)
+    return candidate
 
 
 def _next_monthly(day: int, hour: int, minute: int, second: int, after: datetime) -> datetime:
